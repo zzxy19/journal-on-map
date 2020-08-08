@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'list_journal_page.dart';
 import 'journal_manager.dart';
-import 'journal_content_parser.dart';
 import 'proto.dart';
 
 /// Create/Edit journal page.
@@ -13,25 +12,24 @@ class CreateJournalPage extends StatefulWidget {
   CreateJournalPage({Key key, this.journalId,}) : super(key: key);
   final int journalId;
   @override
-  CreateJournalPageState createState() => CreateJournalPageState();
+  CreateJournalPageState createState() => CreateJournalPageState(journalId: journalId);
 }
 
 class CreateJournalPageState extends State<CreateJournalPage> {
   final _journalManager = JournalManager.manager;
   final titleTextController = TextEditingController();
   final contentTextController = TextEditingController();
-  final contentParser = JournalContentParser();
   final int journalId; // null -> new journal; non-null -> edit existing journal
+  Future<Journal> _existingJournalFuture;
+  JournalMetadata _existingJournalMetadata;
 
   CreateJournalPageState({this.journalId});
 
   @override
   void initState() {
     super.initState();
-    if (journalId == null) {
-      titleTextController.text = "abc";
-    } else {
-      titleTextController.text = "def";
+    if (journalId != null) {
+      _existingJournalFuture = _journalManager.getJournal(journalId);
     }
   }
 
@@ -43,7 +41,32 @@ class CreateJournalPageState extends State<CreateJournalPage> {
     super.dispose();
   }
 
-  Journal prepareJournal() {
+  void _saveJournal(BuildContext context) async {
+    JournalContent content = _buildJournalContent(contentTextController.text);
+    Journal journal = Journal();
+    journal.content = content;
+    if (journalId == null) {
+      journal.metadata = _prepareNewJournalMetadata();
+      await _journalManager.insertJournal(journal);
+    } else {
+      journal.metadata = _updateExistingJournalMetadata();
+      await _journalManager.updateJournal(journal);
+    }
+    Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => ListPage()));
+  }
+
+  JournalContent _buildJournalContent(String text) {
+    return JournalContent.fromPlainText(text);
+  }
+
+  JournalMetadata _updateExistingJournalMetadata() {
+    _existingJournalMetadata.title = titleTextController.text;
+    _existingJournalMetadata.updateTime = Timestamp.current();
+    return _existingJournalMetadata;
+  }
+
+  JournalMetadata _prepareNewJournalMetadata() {
     int uniqueId = DateTime.now().millisecondsSinceEpoch;
     JournalMetadata journalMetadata = JournalMetadata(
         uniqueId,
@@ -52,13 +75,56 @@ class CreateJournalPageState extends State<CreateJournalPage> {
         10.0,
         Timestamp.current(),
         Timestamp.current());
+    return journalMetadata;
   }
 
-  void _saveJournal(BuildContext context) {
-    Journal journal = prepareJournal();
-    _journalManager.insertJournal(journal);
-    Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => ListPage()));
+  Widget _buildJournalPage() {
+    if (journalId != null) {
+      return FutureBuilder<Journal>(
+        future: _existingJournalFuture,
+        builder: (BuildContext context, AsyncSnapshot<Journal> snapshot) {
+          switch (snapshot.connectionState) {
+            case ConnectionState.waiting:
+              return Text("Loading journal...");
+            default:
+              if (snapshot.hasError) {
+                return Text("Error: " + snapshot.error.toString());
+              } else if (!snapshot.hasData) {
+                return Text("There was no error but we didn't fetch any data.");
+              }
+              Journal journal = snapshot.data;
+              _existingJournalMetadata = journal.metadata;
+              titleTextController.text = journal.metadata.title;
+              contentTextController.text = journal.content.plainText();
+              return _journalPageTemplate();
+          }
+        },
+      );
+    } else {
+      return _journalPageTemplate();
+    }
+  }
+
+  Widget _journalPageTemplate() {
+    return ListView(
+        padding: EdgeInsets.all(8.0),
+        children: <Widget>[
+          TextField(
+            controller: titleTextController,
+            decoration: InputDecoration(
+                hintText: "Title"
+            ),
+          ),
+          TextField(
+            controller: contentTextController,
+            minLines: 30, // make the empty text area clickable
+            maxLines: null,
+            keyboardType: TextInputType.multiline,
+            decoration: InputDecoration(
+              hintText: "Journal",
+              border:InputBorder.none,
+            ),
+          ),]);
   }
 
   @override
@@ -67,25 +133,7 @@ class CreateJournalPageState extends State<CreateJournalPage> {
       appBar: AppBar(
         title: Text("Write a journal"),
       ),
-      body: ListView(
-          padding: EdgeInsets.all(8.0),
-          children: <Widget>[
-            TextField(
-              controller: titleTextController,
-              decoration: InputDecoration(
-                  hintText: "Title"
-              ),
-            ),
-            TextField(
-              controller: contentTextController,
-              minLines: 30, // make the empty text area clickable
-              maxLines: null,
-              keyboardType: TextInputType.multiline,
-              decoration: InputDecoration(
-                hintText: "Journal",
-                border:InputBorder.none,
-              ),
-            ),]),
+      body: _buildJournalPage(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => {_saveJournal(context)},
         tooltip: 'Save journal',

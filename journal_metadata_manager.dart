@@ -7,7 +7,7 @@ import 'package:sqflite/sqflite.dart';
 import 'proto.dart';
 
 class JournalMetadataManager {
-  static final String _DATABASE_NAME = "Test2Journal.db";
+  static const String _DATABASE_NAME = "Test4Journal.db";
 
   JournalMetadataManager._();
   static final JournalMetadataManager manager = JournalMetadataManager._();
@@ -56,9 +56,9 @@ class JournalMetadataManager {
   Future<JournalMetadata> getJournalMetadata(int journalId) async {
     Database db = await database;
     List<Map<String, dynamic>> result =
-        await db.query("JournalMetadata", where: "id", whereArgs: [journalId]);
+        await db.query("JournalMetadata", where: "id = ?", whereArgs: [journalId]);
     if (result.isEmpty) {
-      return null;
+      throw JournalNotFoundException("Journal ID not found in metadata table");
     }
     return JournalMetadata.fromMap(result.elementAt(0));
   }

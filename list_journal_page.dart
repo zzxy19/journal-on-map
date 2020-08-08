@@ -49,14 +49,20 @@ class ListPageState extends State<ListPage> {
     );
   }
 
-  Widget _buildJournal(JournalMetadata journalEntry) {
+  Widget _buildJournal(JournalMetadata journalMetadata) {
     return ListTile(
-        title: Text(journalEntry.title));
+        onTap: () => _navigateToCreateJournalPage(journalId: journalMetadata.id),
+        title: Text(journalMetadata.title));
   }
 
-  void _navigateToCreateJournalPage() {
-    Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => CreateJournalPage()));
+  void _navigateToCreateJournalPage({int journalId}) {
+    if (journalId == null) {
+      Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => CreateJournalPage()));
+    } else {
+      Navigator.of(context).push(
+          MaterialPageRoute(builder: (context) => CreateJournalPage(journalId: journalId)));
+    }
   }
 
   @override
