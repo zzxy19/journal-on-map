@@ -7,7 +7,7 @@ import 'package:sqflite/sqflite.dart';
 import 'proto.dart';
 
 class JournalMetadataManager {
-  static const String _DATABASE_NAME = "Test4Journal.db";
+  static const String _DATABASE_NAME = "Test6Journal.db";
 
   JournalMetadataManager._();
   static final JournalMetadataManager manager = JournalMetadataManager._();
@@ -33,10 +33,11 @@ class JournalMetadataManager {
         onCreate: (Database db, int version) async {
           await db.execute(
             "CREATE TABLE JournalMetadata ("
-                "id INTEGER PRIMARY KEY,"
+                "id String PRIMARY KEY,"
                 "title TEXT,"
-                "longitude REAL,"
-                "latitude REAL,"
+                "location_name String,"
+                "location_lat REAL,"
+                "location_lon REAL,"
                 "create_time_ms int,"
                 "update_time_ms int)"
           );
@@ -50,13 +51,20 @@ class JournalMetadataManager {
 
   updateJournalMetadata(JournalMetadata journalMetadata) async {
     Database db = await database;
-    await db.update("JournalMetadata", journalMetadata.toMap());
+    await db.update(
+        "JournalMetadata",
+        journalMetadata.toMapExcludingId(),
+        where: "id = ?",
+        whereArgs: [journalMetadata.id],);
   }
 
-  Future<JournalMetadata> getJournalMetadata(int journalId) async {
+  Future<JournalMetadata> getJournalMetadata(String journalId) async {
     Database db = await database;
     List<Map<String, dynamic>> result =
-        await db.query("JournalMetadata", where: "id = ?", whereArgs: [journalId]);
+        await db.query(
+            "JournalMetadata",
+            where: "id = ?",
+            whereArgs: [journalId],);
     if (result.isEmpty) {
       throw JournalNotFoundException("Journal ID not found in metadata table");
     }
@@ -65,7 +73,10 @@ class JournalMetadataManager {
 
   Future<List<JournalMetadata>> listJournalMetadata() async {
     Database db = await database;
-    List<Map<String, dynamic>> result = await db.query("JournalMetadata");
+    List<Map<String, dynamic>> result =
+        await db.query(
+            "JournalMetadata",
+            orderBy: "create_time_ms DESC");
     if (result.isEmpty) {
       return [];
     }

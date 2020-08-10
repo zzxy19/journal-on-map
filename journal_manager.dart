@@ -17,16 +17,16 @@ class JournalManager {
   }
 
   insertJournal(Journal journal) async {
-    _contentManager.insertJournalContent(journal);
-    _metadataManager.insertJournalMetadata(journal.metadata);
+    await _contentManager.insertJournalContent(journal);
+    await _metadataManager.insertJournalMetadata(journal.metadata);
   }
 
   updateJournal(Journal journal) async {
-    _contentManager.updateJournalContent(journal);
-    _metadataManager.updateJournalMetadata(journal.metadata);
+    await _contentManager.updateJournalContent(journal);
+    await _metadataManager.updateJournalMetadata(journal.metadata);
   }
 
-  Future<Journal> getJournal(int journalId) async {
+  Future<Journal> getJournal(String journalId) async {
     Journal journal = Journal();
     Future<JournalContent> journalContent =
         _contentManager.getJournalContent(journalId)

@@ -11,6 +11,7 @@ class JournalContentManager {
   static final JournalContentManager manager = JournalContentManager._();
 
   static const String _JOURNAL_DIR_NAME = "journals";
+  static const String _JOURNAL_INDEX_FILE = "index";
 
   static Directory _journalDir;
 
@@ -36,7 +37,9 @@ class JournalContentManager {
 
   _writeToFile(Journal journal) async {
     Directory journalDir = await journalDirectory;
-    String fileName = join(journalDir.path, journal.metadata.id.toString());
+    Directory fileDir = Directory(join(journalDir.path, journal.metadata.id));
+    await fileDir.create();
+    String fileName = join(fileDir.path, _JOURNAL_INDEX_FILE);
     File file = File(fileName);
     await file.writeAsString(jsonEncode(journal.content.toJson()));
   }
@@ -49,9 +52,9 @@ class JournalContentManager {
     await _writeToFile(journal);
   }
 
-  Future<JournalContent> getJournalContent(int journalId) async {
+  Future<JournalContent> getJournalContent(String journalId) async {
     Directory journalDir = await journalDirectory;
-    String fileName = join(journalDir.path, journalId.toString());
+    String fileName = join(journalDir.path, journalId, _JOURNAL_INDEX_FILE);
     File file = File(fileName);
     bool fileExists = await file.exists();
     if (!fileExists) {

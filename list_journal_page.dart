@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
-import 'create_journal_page.dart';
+import 'home.dart';
 import 'journal_manager.dart';
 import 'proto.dart';
 
 class ListPage extends StatefulWidget {
-  ListPage({Key key, this.title,}) : super(key: key);
-  final String title;
+  ListPage({Key key}) : super(key: key);
   @override
   ListPageState createState() => ListPageState();
 }
@@ -33,49 +32,46 @@ class ListPageState extends State<ListPage> {
           case ConnectionState.waiting:
             return Text("Loading journal list...");
           default:
-            if (!snapshot.hasData) {
-              return Text("Error...");
+            if (snapshot.hasError) {
+              return Text("Error: " + snapshot.error.toString());
+            } else if (!snapshot.hasData) {
+              return Text("There was no error but we didn't fetch any data.");
             }
-            return ListView(
+            List<JournalMetadata> metadataList = snapshot.data;
+            return ListView.separated(
                 padding: EdgeInsets.all(8.0),
-                children:
-                    snapshot.data
-                        .map(
-                            (JournalMetadata journalEntry) =>
-                                _buildJournal(journalEntry))
-                        .toList());
+                itemCount: metadataList.length,
+                itemBuilder: (BuildContext context, int index) =>
+                    _buildJournal(metadataList.elementAt(index), context),
+                separatorBuilder: (BuildContext context, int index) =>
+                    Divider());
         }
       },
     );
   }
 
-  Widget _buildJournal(JournalMetadata journalMetadata) {
-    return ListTile(
-        onTap: () => _navigateToCreateJournalPage(journalId: journalMetadata.id),
-        title: Text(journalMetadata.title));
+  Widget _buildJournal(JournalMetadata journalMetadata, BuildContext context) {
+    return Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).accentColor,
+          border: Border(bottom: BorderSide()),
+        ),
+        child: ListTile(
+          onTap: () => _navigateToCreateJournalPage(journalMetadata.id),
+          title: Text(journalMetadata.title),
+          leading: Icon(Icons.mode_edit),));
   }
 
-  void _navigateToCreateJournalPage({int journalId}) {
-    if (journalId == null) {
-      Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => CreateJournalPage()));
-    } else {
-      Navigator.of(context).push(
-          MaterialPageRoute(builder: (context) => CreateJournalPage(journalId: journalId)));
-    }
+  void _navigateToCreateJournalPage(String journalId) {
+    Navigator.of(context).push(
+        MaterialPageRoute(
+            builder:
+                (context) =>
+                    HomePage(selectedPageIndex: 1, currentJournalId: journalId)));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("List page"),
-      ),
-      body: _buildJournalList(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToCreateJournalPage,
-        tooltip: 'Write a new journal',
-        child: Icon(Icons.add),
-      ),);
+    return _buildJournalList();
   }
 }

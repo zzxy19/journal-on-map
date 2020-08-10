@@ -1,8 +1,16 @@
-class Coordinate {
-  Coordinate (double lon, double lat) : longitude = lon, latitude = lat;
+import 'package:intl/intl.dart';
 
+class Coordinate {
+  Coordinate ({this.latitude, this.longitude});
   final double longitude;
   final double latitude;
+}
+
+class Location {
+  Location ({this.name, this.coordinate});
+
+  final String name;
+  final Coordinate coordinate;
 }
 
 // Timestamp class that represents milliseconds since Epoch.
@@ -15,6 +23,10 @@ class Timestamp {
 
   factory Timestamp.current() {
     return Timestamp.fromMillis(DateTime.now().millisecondsSinceEpoch);
+  }
+
+  String toString() {
+    return DateFormat("yyyy-MM-dd kk:mm a").format(DateTime.fromMillisecondsSinceEpoch(_millis));
   }
 }
 
@@ -95,21 +107,20 @@ class JournalLine {
          };
     return jsonMap;
   }
-
 }
 
 class JournalMetadata {
-  JournalMetadata(int id, String title, double longitude, double latitude,
+  JournalMetadata(String id, String title, Location location,
       Timestamp createTime, Timestamp updateTime) {
     this.id = id;
     this.title = title;
-    this.location = Coordinate(longitude, latitude);
+    this.location = location;
     this.createTime = createTime;
     this.updateTime = updateTime;
   }
-  int id;
+  String id;
   String title;
-  Coordinate location;
+  Location location;
   Timestamp createTime;
   Timestamp updateTime;
 
@@ -117,8 +128,12 @@ class JournalMetadata {
       new JournalMetadata(
           json["id"],
           json["title"],
-          json["longitude"],
-          json["latitude"],
+          Location(
+              name: json["location_name"],
+              coordinate:
+                  Coordinate(
+                      latitude: json["location_lat"],
+                      longitude: json["location_lon"])),
           Timestamp.fromMillis(json["create_time_ms"]),
           Timestamp.fromMillis(json["update_time_ms"]));
 
@@ -126,8 +141,19 @@ class JournalMetadata {
       {
         "id": id,
         "title": title,
-        "longitude": location.longitude,
-        "latitude": location.latitude,
+        "location_name": location.name,
+        "location_lat": location.coordinate.latitude,
+        "location_lon": location.coordinate.longitude,
+        "create_time_ms": createTime.millis(),
+        "update_time_ms": updateTime.millis(),
+      };
+
+  Map<String, dynamic> toMapExcludingId() =>
+      {
+        "title": title,
+        "location_name": location.name,
+        "location_lat": location.coordinate.latitude,
+        "location_lon": location.coordinate.longitude,
         "create_time_ms": createTime.millis(),
         "update_time_ms": updateTime.millis(),
       };
