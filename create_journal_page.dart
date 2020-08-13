@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
-import 'home.dart';
 import 'journal_manager.dart';
 import 'google_map_location_util.dart';
 import 'proto.dart';
 import 'api_key.dart';
+import 'page_config.dart';
 import 'package:google_map_location_picker/google_map_location_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geolocator/geolocator.dart';
 
 /// Create/Edit journal page.
@@ -14,32 +15,72 @@ import 'package:geolocator/geolocator.dart';
 /// with a new id upon save. If a journalId is passed in, this page serves as
 /// editing of the existing journal with the corresponding id.
 class CreateJournalPage extends StatefulWidget {
-  CreateJournalPage({Key key, this.journalId,}) : super(key: key);
-  final String journalId;
+  CreateJournalPage(this.initialState, {Key key}) : super(key: key);
+  final CreateJournalPageInitialState initialState;
   @override
-  CreateJournalPageState createState() => CreateJournalPageState(journalId: journalId);
+  CreateJournalPageState createState() => CreateJournalPageState(initialState);
 }
 
 class CreateJournalPageState extends State<CreateJournalPage> {
   final _journalManager = JournalManager.manager;
   final titleTextController = TextEditingController();
   final contentTextController = TextEditingController();
+  final locationTextController = TextEditingController();
   final Geolocator geolocator = Geolocator()..forceAndroidLocationManager;
-  final String journalId; // null -> new journal; non-null -> edit existing journal
+  final CreateJournalPageInitialState initialState;
+
   Future<Journal> _existingJournalFuture;
   JournalMetadata _existingJournalMetadata;
-  Location _selectedLocation;
   bool pageLoaded = false;
-  String _locationText = "[empty]";
+  Location _selectedLocation;
+  bool fetchingLocation = false;
 
-  CreateJournalPageState({this.journalId});
+  CreateJournalPageState(this.initialState);
 
   @override
   void initState() {
     super.initState();
-    if (journalId != null) {
-      _existingJournalFuture = _journalManager.getJournal(journalId);
+    switch (initialState.journalType) {
+      case JournalType.EDIT_EXISTING:
+        _existingJournalFuture = _journalManager.getJournal(initialState.journalId);
+        return;
+
+      case JournalType.NEW_WITH_LOCATION:
+        _getAndSetLocation(initialState.coordinate);
+        break;
+
+      case JournalType.NEW:
+        locationTextController.text = "[empty]";
+        break;
+
+      default:
+        // do nothing
     }
+    pageLoaded = true;
+  }
+
+  void _getAndSetLocation(Coordinate coordinate) async {
+    setState(() {
+      fetchingLocation = true;
+      locationTextController.text = "Getting location name...";
+    });
+    String locationName;
+    try {
+      locationName = await _getAddressFromCoordinate(coordinate);
+    } catch (exception) {
+      _setLocation(coordinate, "A mysterious place");
+      fetchingLocation = false;
+      return;
+    }
+    _setLocation(coordinate, locationName);
+    fetchingLocation = false;
+  }
+
+  void _setLocation(Coordinate coordinate, String locationName) {
+    setState(() {
+      _selectedLocation = Location(name: locationName, coordinate: coordinate);
+      locationTextController.text = locationName;
+    });
   }
 
   @override
@@ -47,17 +88,18 @@ class CreateJournalPageState extends State<CreateJournalPage> {
     // Clean up the controller when the widget is disposed.
     titleTextController.dispose();
     contentTextController.dispose();
+    locationTextController.dispose();
     super.dispose();
   }
 
   void _saveJournal(BuildContext context) async {
-    if (_selectedLocation == null) {
+    if (_selectedLocation == null || fetchingLocation) {
       showDialog(
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
               title: Text("Missing location"),
-              content: Text("You need to select a location to save the current journal."));
+              content: Text("You need to select a location to save the current note."));
         },
       );
       return;
@@ -65,15 +107,50 @@ class CreateJournalPageState extends State<CreateJournalPage> {
     JournalContent content = _buildJournalContent(contentTextController.text);
     Journal journal = Journal();
     journal.content = content;
-    if (journalId == null) {
-      journal.metadata = _prepareNewJournalMetadata();
-      await _journalManager.insertJournal(journal);
-    } else {
-      journal.metadata = _updateExistingJournalMetadata();
-      await _journalManager.updateJournal(journal);
+    _selectedLocation.name = locationTextController.text;
+
+    switch (initialState.journalType) {
+      case JournalType.EDIT_EXISTING:
+        journal.metadata = _updateExistingJournalMetadata();
+        await _journalManager.updateJournal(journal);
+        break;
+
+      case JournalType.NEW:
+      case JournalType.NEW_WITH_LOCATION:
+        journal.metadata = _prepareNewJournalMetadata();
+        await _journalManager.insertJournal(journal);
+        break;
     }
-    Navigator.of(context).push(
-        MaterialPageRoute(builder: (context) => HomePage(selectedPageIndex: 2,)));
+    _toast("Saved!");
+    Navigator.of(context).pop(/* shouldRefresh */ true);
+  }
+
+  void _deleteJournal(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Deleting note?"),
+          actions: <Widget>[
+            FlatButton(
+              child: Text('Yes'),
+              onPressed: () async {
+                await _journalManager.deleteJournal(initialState.journalId);
+                _toast("Deleted!");
+                Navigator.of(context).pop();
+                Navigator.of(context).pop(/* shouldRefresh */ true);
+              },
+            ),
+            FlatButton(
+              child: Text('No'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   JournalContent _buildJournalContent(String text) {
@@ -99,13 +176,13 @@ class CreateJournalPageState extends State<CreateJournalPage> {
   }
 
   Widget _buildJournalPage() {
-    if (journalId != null && !pageLoaded) {
+    if (initialState.journalType == JournalType.EDIT_EXISTING && !pageLoaded) {
       return FutureBuilder<Journal>(
         future: _existingJournalFuture,
         builder: (BuildContext context, AsyncSnapshot<Journal> snapshot) {
           switch (snapshot.connectionState) {
             case ConnectionState.waiting:
-              return Text("Loading journal...");
+              return Text("Loading note...");
             default:
               if (snapshot.hasError) {
                 return Text("Error: " + snapshot.error.toString());
@@ -127,9 +204,12 @@ class CreateJournalPageState extends State<CreateJournalPage> {
     titleTextController.text = journal.metadata.title;
     contentTextController.text = journal.content.plainText();
     _selectedLocation = journal.metadata.location;
-    _locationText = journal.metadata.location.name;
+    locationTextController.text = journal.metadata.location.name;
   }
 
+  /// Deprecated
+  ///
+  /// This API doesn't seem to be stable/performant, so I've cut it out.
   void _getUserSelectedLocation(BuildContext context) async {
     LocationResult result = await showLocationPicker(
         context,
@@ -140,34 +220,49 @@ class CreateJournalPageState extends State<CreateJournalPage> {
       return;
     }
     Location location = GoogleMapLocationUtil.locationResult2Location(result);
-    setState(() => _locationText = "Fetching location...");
-    String locationName =
-        location.name != null ?
-            location.name : await _getAddressFromCoordinate(location.coordinate);
-    setState(() {
-      _selectedLocation = Location(name: locationName, coordinate: location.coordinate);
-      _locationText = locationName;
-    });
+    if (location.name == null) {
+      await _getAndSetLocation(location.coordinate);
+    } else {
+      _setLocation(location.coordinate, location.name);
+    }
   }
 
   void _getUserCurrentLocation() async {
     setState(() {
-      _locationText = "Fetching your current location...";
+      fetchingLocation = true;
+      locationTextController.text = "Fetching your current location...";
     });
-    Position position = await geolocator.getCurrentPosition();
-    String locationName =
-        await _getAddressFromCoordinate(GoogleMapLocationUtil.position2Coordinate(position));
-    setState(() {
-      _selectedLocation = GoogleMapLocationUtil.position2Location(position, locationName);
-      _locationText = _selectedLocation.name;
-    });
+    // Using #getLastKnownPosition instead of #getCurrentPosition because it
+    // seems much faster.
+    Position position;
+    try {
+      position = await geolocator.getLastKnownPosition();
+    } catch (exception) {
+      _setLocation(Coordinate(), "Unable to get location");
+      fetchingLocation = false;
+      return;
+    }
+    _getAndSetLocation(GoogleMapLocationUtil.position2Coordinate(position));
+    fetchingLocation = false;
   }
 
   Future<String> _getAddressFromCoordinate(Coordinate coordinate) async {
-    List<Placemark> p = await geolocator.placemarkFromCoordinates(
-        coordinate.latitude, coordinate.longitude);
-    Placemark place = p[0];
+    List<Placemark> places =
+        await geolocator.placemarkFromCoordinates(coordinate.latitude, coordinate.longitude);
+    Placemark place = places[0];
     return "${place.locality}, ${place.postalCode}, ${place.country}";
+  }
+
+  _toast(String message) {
+    Fluttertoast.showToast(
+        msg: message,
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Theme.of(context).accentColor,
+        textColor: Colors.black,
+        fontSize: 16.0
+    );
   }
 
   Widget _journalPageTemplate(BuildContext context) {
@@ -189,9 +284,13 @@ class CreateJournalPageState extends State<CreateJournalPage> {
                   icon: Icon(Icons.my_location),
                   onPressed: _getUserCurrentLocation,
                 ),
-                GestureDetector(
-                  onTap: () => _getUserSelectedLocation(context),
-                  child: Text(_locationText, style: TextStyle(color: Colors.blue),),
+                Expanded(
+                  child: TextField(
+                    controller: locationTextController,
+                    decoration: InputDecoration(
+                      border:InputBorder.none,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -201,21 +300,55 @@ class CreateJournalPageState extends State<CreateJournalPage> {
               maxLines: null,
               keyboardType: TextInputType.multiline,
               decoration: InputDecoration(
-                hintText: "Journal",
+                hintText: "Note",
                 border:InputBorder.none,
               ),
             ),],
-        ).toList(),);
+        ).toList(),
+    );
+  }
+
+  List<Widget> _getFABs(BuildContext context) {
+    switch (initialState.journalType) {
+      case JournalType.EDIT_EXISTING:
+        return <Widget>[
+          FloatingActionButton(
+            heroTag: "save-btn",
+            onPressed: () => {_saveJournal(context)},
+            tooltip: 'Save note',
+            child: Icon(Icons.check),
+          ),
+          FloatingActionButton(
+            heroTag: "delete-btn",
+            onPressed: () => {_deleteJournal(context)},
+            tooltip: 'Delete note',
+            child: Icon(Icons.delete),
+          ),
+        ];
+
+      default:
+        return <Widget>[
+          FloatingActionButton(
+            heroTag: "save-btn",
+            onPressed: () => {_saveJournal(context)},
+            tooltip: 'Save note',
+            child: Icon(Icons.check),
+          ),
+        ];
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Travel Notebook'),
+      ),
       body: _buildJournalPage(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => {_saveJournal(context)},
-        tooltip: 'Save journal',
-        child: Icon(Icons.check),
-      ),);
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: _getFABs(context),
+      ),
+    );
   }
 }

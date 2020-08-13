@@ -58,6 +58,14 @@ class JournalMetadataManager {
         whereArgs: [journalMetadata.id],);
   }
 
+  deleteJournalMetadata(String journalId) async {
+    Database db = await database;
+    await db.delete(
+      "JournalMetadata",
+      where: "id = ?",
+      whereArgs: [journalId],);
+  }
+
   Future<JournalMetadata> getJournalMetadata(String journalId) async {
     Database db = await database;
     List<Map<String, dynamic>> result =

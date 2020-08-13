@@ -1,7 +1,8 @@
 import 'package:intl/intl.dart';
 
 class Coordinate {
-  Coordinate ({this.latitude, this.longitude});
+  Coordinate ({latitude, longitude}) :
+        this.latitude = latitude??0, this.longitude = longitude??0;
   final double longitude;
   final double latitude;
 }
@@ -9,8 +10,8 @@ class Coordinate {
 class Location {
   Location ({this.name, this.coordinate});
 
-  final String name;
-  final Coordinate coordinate;
+  String name;
+  Coordinate coordinate;
 }
 
 // Timestamp class that represents milliseconds since Epoch.
@@ -27,6 +28,10 @@ class Timestamp {
 
   String toString() {
     return DateFormat("yyyy-MM-dd kk:mm a").format(DateTime.fromMillisecondsSinceEpoch(_millis));
+  }
+
+  String toDateString() {
+    return DateFormat("yyyy-MM-dd").format(DateTime.fromMillisecondsSinceEpoch(_millis));
   }
 }
 

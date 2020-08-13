@@ -36,12 +36,21 @@ class JournalContentManager {
   }
 
   _writeToFile(Journal journal) async {
-    Directory journalDir = await journalDirectory;
-    Directory fileDir = Directory(join(journalDir.path, journal.metadata.id));
+    Directory fileDir = await _getFileDirectory(journal.metadata.id);
     await fileDir.create();
     String fileName = join(fileDir.path, _JOURNAL_INDEX_FILE);
     File file = File(fileName);
     await file.writeAsString(jsonEncode(journal.content.toJson()));
+  }
+
+  _deleteFileDirectory(String journalId) async {
+    Directory fileDir = await _getFileDirectory(journalId);
+    await fileDir.delete(recursive: true);
+  }
+
+  Future<Directory> _getFileDirectory(String journalId) async {
+    Directory journalDir = await journalDirectory;
+    return Directory(join(journalDir.path, journalId));
   }
 
   insertJournalContent(Journal journal) async {
@@ -50,6 +59,10 @@ class JournalContentManager {
 
   updateJournalContent(Journal journal) async {
     await _writeToFile(journal);
+  }
+
+  deleteJournalContent(String journalId) async {
+    await _getFileDirectory(journalId);
   }
 
   Future<JournalContent> getJournalContent(String journalId) async {

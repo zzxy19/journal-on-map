@@ -3,45 +3,72 @@ import 'package:flutter/material.dart';
 import 'create_journal_page.dart';
 import 'list_journal_page.dart';
 import 'google_map_page.dart';
+import 'page_config.dart';
 
 class HomePage extends StatefulWidget {
 
-  HomePage({Key key, this.currentJournalId, this.selectedPageIndex}) : super(key: key);
-  final int selectedPageIndex;
-  final String currentJournalId;
+  HomePage(this.initialState, {Key key}) : super(key: key);
+  final HomePageInitialState initialState;
 
   @override
-  HomePageState createState() =>
-      HomePageState(selectedPageIndex: selectedPageIndex, currentJournalId: currentJournalId);
+  HomePageState createState() => HomePageState(initialState);
 }
 
 class HomePageState extends State<HomePage> {
-  HomePageState({int selectedPageIndex, String currentJournalId}) {
+  HomePageState(HomePageInitialState initialState) {
     _pages = <Widget>[
       GoogleMapPage(),
-      CreateJournalPage(journalId: currentJournalId,),
+      CreateJournalPage(initialState.createJournalPageInitialState),
       ListPage(),
     ];
-    this.selectedPageIndex = selectedPageIndex ?? 0;
-    this.currentJournalId = currentJournalId;
+    this.selectedPageIndex = initialState.selectedPageIndex;
   }
 
   int selectedPageIndex;
-  String currentJournalId; // can be null
   List<Widget> _pages;
 
-  void _onItemTapped(int index) {
-    setState(() {
-      selectedPageIndex = index;
-    });
+  void _onItemTapped(int index) async {
+    if (index == 1) {
+      bool shouldRefresh = await RoutingHelper.navigateToNewJournalPage(context);
+      if (shouldRefresh != null) {
+        _forceRefresh(selectedPageIndex);
+      }
+    } else {
+      setState(() {
+        selectedPageIndex = index;
+      });
+    }
+  }
+
+  void _forceRefresh(int index) async {
+    if (index == 0) {
+      RoutingHelper.navigateToMapPage(context);
+    } else if (index == 2) {
+      RoutingHelper.navigateToListPage(context);
+    }
+  }
+
+  void ___onItemTapped(int index) {
+    if (index == 1) {
+      RoutingHelper.navigateToNewJournalPage(context)
+          .then((unused) {
+        debugPrint("INTERESTED: set state during nav");
+        setState(() => {});
+      });
+    } else {
+      setState(() {
+        selectedPageIndex = index;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: const Text('Journal on Map'),
+          title: const Text('Travel Notebook'),
         ),
+        backgroundColor: Theme.of(context).backgroundColor,
         body: Center(
           child: _pages.elementAt(selectedPageIndex),
         ),
@@ -52,8 +79,8 @@ class HomePageState extends State<HomePage> {
               title: Text('Map'),
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.add),
-              title: Text('Journal'),
+              icon: Icon(Icons.add_circle),
+              title: Text('Note'),
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.list),

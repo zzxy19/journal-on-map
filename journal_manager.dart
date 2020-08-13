@@ -26,6 +26,11 @@ class JournalManager {
     await _metadataManager.updateJournalMetadata(journal.metadata);
   }
 
+  deleteJournal(String journalId) async {
+    await _metadataManager.deleteJournalMetadata(journalId);
+    await _contentManager.deleteJournalContent(journalId);
+  }
+
   Future<Journal> getJournal(String journalId) async {
     Journal journal = Journal();
     Future<JournalContent> journalContent =

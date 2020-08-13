@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'home.dart';
+import 'page_config.dart';
 
 void main() {
   runApp(MyApp());
@@ -13,12 +14,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Journal on a Map',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        accentColor: Colors.lightBlue[200],
+        primarySwatch: Colors.cyan,
+        accentColor: Colors.cyan,
         dividerColor: Colors.grey,
+        backgroundColor: Colors.blueGrey[50],
+        cardColor: Colors.blueGrey[50],
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: HomePage(),
+      home: HomePage(HomePageInitialState.mapPage()),
     );
   }
 }
